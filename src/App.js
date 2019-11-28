@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useReducer, useEffect, useMemo } from 'react'
 
+import appReducer from './reducers'
 import StateContext from './StateContext'
 import { fetchAPITodos, generateID } from './api'
 import Header from './Header'
@@ -7,66 +8,17 @@ import AddTodo from './AddTodo'
 import TodoList from './TodoList'
 import TodoFilter from './TodoFilter'
 
-export default class App extends React.Component {
-    constructor(props) {
-        super(props)
-        this.state = { todos: [], filteredTodos: [], filter: 'all' }
+export default function App() {
+    const [state, dispatch] = useReducer(appReducer, { todos: [], filter: 'all' })
 
-        this.fetchTodos = this.fetchTodos.bind(this)
-        this.addTodo = this.addTodo.bind(this)
-        this.toggleTodo = this.toggleTodo.bind(this)
-        this.removeTodo = this.removeTodo.bind(this)
-        this.filterTodos = this.filterTodos.bind(this)
-    }
-    componentDidMount() {
-        this.fetchTodos()
-    }
+    useEffect(() => {
+        fetchAPITodos().then((todos) =>
+            dispatch({ type: 'FETCH_TODOS' })
+        )
+    }, [])
 
-    fetchTodos() {
-        fetchAPITodos().then((todos) => {
-            this.setState({ todos })
-            this.filterTodos()
-        })
-    }
-
-    addTodo(title) {
-        const { todos } = this.state
-
-        const newTodo = { id: generateID(), title, completed: false }
-
-        this.setState({ todos: [newTodo, ...todos] })
-        this.filterTodos()
-    }
-
-    toggleTodo(id) {
-        const { todos } = this.state
-
-        const newTodos = todos.map(t => {
-            if (t.id === id) {
-                return { ...t, completed: !t.completed }
-            }
-            return t
-        }, [])
-
-        this.setState({ todos: newTodos })
-        this.filterTodos()
-    }
-
-    removeTodo(id) {
-        const { todos } = this.state
-
-        const newTodos = todos.filter(t => {
-            if(t.id === id) {
-                return false
-            }
-            return true
-        })
-
-        this.setState({ todos: newTodos })
-        this.filterTodos()
-    }
-
-    applyFilter(todos, filter) {
+    const filteredTodos = useMemo(() => {
+        const { filter, todos } = state
         switch (filter) {
             case 'active':
                 return todos.filter(t => t.completed === false)
@@ -78,29 +30,34 @@ export default class App extends React.Component {
             case 'all':
                 return todos
         }
+    }, [state])
+
+    function addTodo(title) {
+        dispatch({ type: 'ADD_TODO', title })
     }
 
-    filterTodos(filterArg) {
-        this.setState(({ todos, filter }) => ({
-            filter: filterArg || filter,
-            filteredTodos: this.applyFilter(todos, filterArg || filter)
-        }))
+    function toggleTodo(id) {
+        dispatch({ type: 'TOGGLE_TODO', id })
     }
 
-    render() {
-        const { filter, filteredTodos } = this.state
-
-        return (
-            <StateContext.Provider value={filteredTodos}>
-                <div style={{ width: 400 }}>
-                    <Header />
-                    <AddTodo addTodo={this.addTodo} />
-                    <hr />
-                    <TodoList toggleTodo={this.toggleTodo} removeTodo={this.removeTodo} />
-                    <hr />
-                    <TodoFilter filter={filter} filterTodos={this.filterTodos} />
-                </div>
-            </StateContext.Provider>
-        )
+    function removeTodo(id) {
+        dispatch({ type: 'REMOVE_TODO', id })
     }
+
+    function filterTodos(filter) {
+        dispatch({ type: 'FILTER_TODOS', filter })
+    }
+
+    return (
+        <StateContext.Provider value={filteredTodos}>
+            <div style={{ width: 400 }}>
+                <Header />
+                <AddTodo addTodo={addTodo} />
+                <hr />
+                <TodoList toggleTodo={toggleTodo} removeTodo={removeTodo} />
+                <hr />
+                <TodoFilter filter={filter} filterTodos={filterTodos} />
+            </div>
+        </StateContext.Provider>
+    )
 }
